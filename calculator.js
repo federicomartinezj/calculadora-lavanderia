@@ -1,3 +1,42 @@
+// --- Constantes de Conversión ---
+const KG_PER_LB = 0.453592;
+const LB_PER_KG = 2.20462;
+
+const BASE_CAPACITY_PER_ROOM_LBS = {
+    "Estancia Prolongada": 8.0,
+    "Económico": 10.0,
+    "Servicio Limitado": 12.0,
+    "Servicio Selecto": 14.0,
+    "Lujo": 16.0,
+    "Resort": 18.0
+};
+const BASE_CAPACITY_PER_ROOM_KG = {
+    "Estancia Prolongada": (8.0 * KG_PER_LB),
+    "Económico": (10.0 * KG_PER_LB),
+    "Servicio Limitado": (12.0 * KG_PER_LB),
+    "Servicio Selecto": (14.0 * KG_PER_LB),
+    "Lujo": (16.0 * KG_PER_LB),
+    "Resort": (18.0 * KG_PER_LB)
+};
+
+function updateRoomWeight() {
+    const hotelType = document.getElementById('hotelType').value;
+    const unit = document.getElementById('unit').value;
+    let value = 0;
+    if (unit === 'kg') {
+        value = BASE_CAPACITY_PER_ROOM_KG[hotelType] ? BASE_CAPACITY_PER_ROOM_KG[hotelType].toFixed(2) : '';
+    } else {
+        value = BASE_CAPACITY_PER_ROOM_LBS[hotelType] ? BASE_CAPACITY_PER_ROOM_LBS[hotelType].toFixed(2) : '';
+    }
+    document.getElementById('roomWeight').value = value;
+    document.getElementById('unitLabel').textContent = unit;
+}
+
+document.getElementById('hotelType').addEventListener('change', updateRoomWeight);
+document.getElementById('unit').addEventListener('change', updateRoomWeight);
+
+document.addEventListener('DOMContentLoaded', updateRoomWeight);
+
 document.getElementById('calculatorForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
@@ -8,14 +47,17 @@ document.getElementById('calculatorForm').addEventListener('submit', function(e)
     const roomWeight = parseFloat(document.getElementById('roomWeight').value);
     const operatingDays = parseFloat(document.getElementById('operatingDays').value);
     const operatingHours = parseFloat(document.getElementById('operatingHours').value);
+    const unit = document.getElementById('unit').value;
 
     // Constantes
     const CYCLE_TIME = 50; // minutos por ciclo
     const EFFICIENCY = 0.90; // 90% de eficiencia
-    const MACHINE_CAPACITIES = [18, 24, 29, 35, 45, 60, 80, 100]; // Capacidades disponibles en kg
+    const MACHINE_CAPACITIES_KG = [18, 24, 29, 35, 45, 60, 80, 100];
+    const MACHINE_CAPACITIES_LB = [40, 60, 80, 100, 125, 160, 200, 220];
+    const MACHINE_CAPACITIES = unit === 'kg' ? MACHINE_CAPACITIES_KG : MACHINE_CAPACITIES_LB;
 
     // Cálculos
-    // 1. Cálculo de kilos diarios
+    // 1. Cálculo de kilos/libras diarios
     const dailyWeight = (rooms * occupancy * roomWeight) / stayDuration;
 
     // 2. Cálculo de capacidad por hora
@@ -27,49 +69,71 @@ document.getElementById('calculatorForm').addEventListener('submit', function(e)
     // 4. Cálculo de ciclos por día
     const cyclesPerDay = (dailyWeight / cycleCapacity) / EFFICIENCY;
 
-    // 5. Recomendación de equipos
-    let equipmentRecommendation = '';
-    let totalCapacity = 0;
-    let machines = [];
-
-    // Calcular la capacidad total necesaria
+    // 5. Recomendación de equipos (3 mejores opciones)
     const requiredCapacity = cycleCapacity / EFFICIENCY;
+    let combinations = [];
 
-    // Encontrar la mejor combinación de máquinas
-    let remainingCapacity = requiredCapacity;
-    while (remainingCapacity > 0) {
-        // Encontrar la máquina más grande que no exceda la capacidad restante
-        let bestMachine = MACHINE_CAPACITIES.reduce((best, current) => {
-            if (current <= remainingCapacity && current > best) {
-                return current;
-            }
-            return best;
-        }, 0);
-
-        if (bestMachine === 0) {
-            // Si no encontramos una máquina que se ajuste, usamos la más pequeña
-            bestMachine = MACHINE_CAPACITIES[0];
+    // Generar todas las combinaciones posibles de 1, 2 y 3 máquinas
+    for (let i = 0; i < MACHINE_CAPACITIES.length; i++) {
+        // 1 máquina
+        let sum1 = MACHINE_CAPACITIES[i];
+        if (sum1 >= requiredCapacity) {
+            combinations.push({
+                machines: [MACHINE_CAPACITIES[i]],
+                total: sum1,
+                excess: sum1 - requiredCapacity
+            });
         }
-
-        machines.push(bestMachine);
-        totalCapacity += bestMachine;
-        remainingCapacity -= bestMachine;
+        // 2 máquinas
+        for (let j = i; j < MACHINE_CAPACITIES.length; j++) {
+            let sum2 = MACHINE_CAPACITIES[i] + MACHINE_CAPACITIES[j];
+            if (sum2 >= requiredCapacity) {
+                combinations.push({
+                    machines: [MACHINE_CAPACITIES[i], MACHINE_CAPACITIES[j]],
+                    total: sum2,
+                    excess: sum2 - requiredCapacity
+                });
+            }
+            // 3 máquinas
+            for (let k = j; k < MACHINE_CAPACITIES.length; k++) {
+                let sum3 = MACHINE_CAPACITIES[i] + MACHINE_CAPACITIES[j] + MACHINE_CAPACITIES[k];
+                if (sum3 >= requiredCapacity) {
+                    combinations.push({
+                        machines: [MACHINE_CAPACITIES[i], MACHINE_CAPACITIES[j], MACHINE_CAPACITIES[k]],
+                        total: sum3,
+                        excess: sum3 - requiredCapacity
+                    });
+                }
+            }
+        }
     }
 
-    // Formatear la recomendación
-    const machineCounts = machines.reduce((acc, capacity) => {
-        acc[capacity] = (acc[capacity] || 0) + 1;
-        return acc;
-    }, {});
+    // Ordenar por menor exceso y menor cantidad de máquinas
+    combinations.sort((a, b) => {
+        if (a.excess !== b.excess) return a.excess - b.excess;
+        return a.machines.length - b.machines.length;
+    });
 
-    equipmentRecommendation = Object.entries(machineCounts)
-        .map(([capacity, count]) => `${count} Lavadora${count > 1 ? 's' : ''} de ${capacity} kg`)
-        .join(' + ');
+    // Tomar las 3 mejores opciones
+    const bestOptions = combinations.slice(0, 3);
+
+    // Formatear la recomendación
+    let equipmentRecommendation = bestOptions.map((option, idx) => {
+        // Contar máquinas iguales
+        const machineCounts = option.machines.reduce((acc, capacity) => {
+            acc[capacity] = (acc[capacity] || 0) + 1;
+            return acc;
+        }, {});
+        const machinesStr = Object.entries(machineCounts)
+            .map(([capacity, count]) => `${count} Lavadora${count > 1 ? 's' : ''} de ${capacity} ${unit}`)
+            .join(' + ');
+        return `Opción ${idx + 1}: ${machinesStr} (Capacidad instalada: ${option.total} ${unit}, Exceso: ${(option.excess).toFixed(2)} ${unit})`;
+    }).join('\n');
 
     // Mostrar resultados
-    document.getElementById('dailyCapacity').textContent = `${dailyWeight.toFixed(2)} kg/día`;
-    document.getElementById('hourlyCapacity').textContent = `${hourlyCapacity.toFixed(2)} kg/hora`;
-    document.getElementById('cycleCapacity').textContent = `${cycleCapacity.toFixed(2)} kg/ciclo`;
+    document.getElementById('dailyCapacity').textContent = `${dailyWeight.toFixed(2)} ${unit}/día`;
+    document.getElementById('hourlyCapacity').textContent = `${hourlyCapacity.toFixed(2)} ${unit}/hora`;
+    document.getElementById('cycleCapacity').textContent = `${cycleCapacity.toFixed(2)} ${unit}/ciclo`;
     document.getElementById('cyclesPerDay').textContent = `${cyclesPerDay.toFixed(1)} ciclos`;
     document.getElementById('equipmentRecommendation').textContent = equipmentRecommendation;
 
