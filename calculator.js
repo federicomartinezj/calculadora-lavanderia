@@ -12,6 +12,7 @@ document.getElementById('calculatorForm').addEventListener('submit', function(e)
     // Constantes
     const CYCLE_TIME = 50; // minutos por ciclo
     const EFFICIENCY = 0.90; // 90% de eficiencia
+    const MACHINE_CAPACITIES = [18, 24, 29, 35, 45, 60, 80, 100]; // Capacidades disponibles en kg
 
     // Cálculos
     // 1. Cálculo de kilos diarios
@@ -28,16 +29,42 @@ document.getElementById('calculatorForm').addEventListener('submit', function(e)
 
     // 5. Recomendación de equipos
     let equipmentRecommendation = '';
-    if (cycleCapacity <= 10) {
-        equipmentRecommendation = '1 Lavadora de 10 kg';
-    } else if (cycleCapacity <= 20) {
-        equipmentRecommendation = '1 Lavadora de 20 kg';
-    } else if (cycleCapacity <= 30) {
-        equipmentRecommendation = '1 Lavadora de 30 kg';
-    } else {
-        const machines = Math.ceil(cycleCapacity / 30);
-        equipmentRecommendation = `${machines} Lavadoras de 30 kg`;
+    let totalCapacity = 0;
+    let machines = [];
+
+    // Calcular la capacidad total necesaria
+    const requiredCapacity = cycleCapacity / EFFICIENCY;
+
+    // Encontrar la mejor combinación de máquinas
+    let remainingCapacity = requiredCapacity;
+    while (remainingCapacity > 0) {
+        // Encontrar la máquina más grande que no exceda la capacidad restante
+        let bestMachine = MACHINE_CAPACITIES.reduce((best, current) => {
+            if (current <= remainingCapacity && current > best) {
+                return current;
+            }
+            return best;
+        }, 0);
+
+        if (bestMachine === 0) {
+            // Si no encontramos una máquina que se ajuste, usamos la más pequeña
+            bestMachine = MACHINE_CAPACITIES[0];
+        }
+
+        machines.push(bestMachine);
+        totalCapacity += bestMachine;
+        remainingCapacity -= bestMachine;
     }
+
+    // Formatear la recomendación
+    const machineCounts = machines.reduce((acc, capacity) => {
+        acc[capacity] = (acc[capacity] || 0) + 1;
+        return acc;
+    }, {});
+
+    equipmentRecommendation = Object.entries(machineCounts)
+        .map(([capacity, count]) => `${count} Lavadora${count > 1 ? 's' : ''} de ${capacity} kg`)
+        .join(' + ');
 
     // Mostrar resultados
     document.getElementById('dailyCapacity').textContent = `${dailyWeight.toFixed(2)} kg/día`;
